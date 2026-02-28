@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Weekly Stock Watchlist Tracker</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .app-header {
+    background: #003087;
+    color: white;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .app-header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.5px; }
+  .app-header .meta { font-size: 0.8rem; opacity: 0.8; margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+
+  /* ── Buttons ── */
+  .btn {
+    padding: 7px 16px; border: none; border-radius: 4px;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-primary   { background: #1a73e8; color: white; }
+  .btn-secondary { background: #e8eaf0; color: #333; }
+  .btn-danger    { background: #c62828; color: white; }
+  .btn-success   { background: #2e7d32; color: white; }
+  .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+  /* ── Status bar ── */
+  .status-bar {
+    background: #1a1a2e;
+    color: #adb5bd;
+    font-size: 0.75rem;
+    padding: 5px 24px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block; margin-right: 5px;
+  }
+  .dot-live   { background: #4caf50; animation: pulse 2s infinite; }
+  .dot-stale  { background: #ff9800; }
+  .dot-error  { background: #f44336; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex; gap: 16px; padding: 10px 24px;
+    background: white; border-bottom: 1px solid #dde;
+    flex-wrap: wrap; align-items: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; }
+  .legend-swatch {
+    width: 18px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15);
+  }
+
+  /* ── Main layout ── */
+  .main { padding: 16px 24px; }
+
+  /* ── Table wrapper ── */
+  .table-wrap {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow-x: auto;
+  }
+
+  /* ── Table ── */
+  table {
+    width: 100%; border-collapse: collapse;
+    min-width: 1100px;
+  }
+  th, td {
+    padding: 0; text-align: center;
+    border-right: 1px solid #d0d5e0;
+  }
+  th:last-child, td:last-child { border-right: none; }
+
+  /* Header rows */
+  .th-title {
+    background: #003087; color: white;
+    font-size: 0.95rem; font-weight: 700;
+    padding: 10px 16px; text-align: left;
+    border-bottom: 1px solid #1a4a9e;
+  }
+  .th-group {
+    background: #003087; color: white;
+    font-size: 0.82rem; font-weight: 700;
+    padding: 8px 6px;
+    border-bottom: 1px solid #1a4a9e;
+  }
+  .th-sub {
+    background: #003087; color: #c8d8f8;
+    font-size: 0.75rem; font-weight: 600;
+    padding: 5px 6px;
+    border-bottom: 2px solid #1a4a9e;
+  }
+
+  /* Data cells */
+  td { font-size: 0.82rem; padding: 0 6px; height: 42px; }
+  td.ticker-cell {
+    font-weight: 700; font-size: 0.88rem;
+    text-align: left; padding-left: 14px;
+  }
+  td.action-cell { padding: 4px 6px; }
+
+  /* Row states */
+  tr.row-watching  { background: #ffffff; }
+  tr.row-watching:nth-child(even) { background: #f4f6fb; }
+  tr.row-entered   { background: #e3f2fd !important; border-left: 4px solid #1a73e8; }
+  tr.row-near-stop { background: #fff3e0 !important; }
+  tr.row-stopped   { background: #ffebee !important; opacity: 0.75; }
+  tr.row-t1-hit    { background: #e8f5e9 !important; }
+  tr.row-t2-hit    { background: #c8e6c9 !important; }
+  tr.row-t3-hit    { background: #a5d6a7 !important; }
+  tr.row-entry-hit { background: #fff9c4 !important; }
+
+  /* Color-coded values */
+  .val-loss    { color: #c62828; font-weight: 600; }
+  .val-gain    { color: #2e7d32; font-weight: 600; }
+  .val-neutral { color: #555; }
+  .val-current { font-weight: 700; font-size: 0.88rem; }
+  .val-current.above-entry { color: #1565c0; }
+  .val-current.at-entry    { color: #f57f17; }
+  .val-current.below-entry { color: #c62828; }
+  .val-current.near-stop   { color: #b71c1c; font-weight: 800; }
+
+  /* Target cells */
+  .target-hit { color: #1b5e20; font-weight: 700; }
+  .target-hit::after { content: ' ✓'; }
+
+  /* Progress bar */
+  .progress-wrap {
+    width: 100%; background: #e0e0e0;
+    border-radius: 4px; height: 6px;
+    margin-top: 3px; overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%; border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+  .progress-watching { background: #90caf9; }
+  .progress-good     { background: #66bb6a; }
+  .progress-great    { background: #43a047; }
+  .progress-full     { background: #1b5e20; }
+
+  /* Status badge */
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 10px; font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .badge-watch   { background: #e3e8f0; color: #555; }
+  .badge-entered { background: #1a73e8; color: white; }
+  .badge-stop    { background: #c62828; color: white; }
+  .badge-t1      { background: #81c784; color: #1b5e20; }
+  .badge-t2      { background: #4caf50; color: white; }
+  .badge-t3      { background: #1b5e20; color: white; }
+  .badge-entry   { background: #f9a825; color: #333; }
+
+  /* Entry hit indicator */
+  .entry-alert {
+    display: inline-block;
+    background: #f9a825; color: #333;
+    border-radius: 3px; padding: 1px 5px;
+    font-size: 0.68rem; font-weight: 700;
+    margin-left: 4px; vertical-align: middle;
+  }
+
+  /* P&L cell */
+  .pnl-positive { color: #2e7d32; font-weight: 700; }
+  .pnl-negative { color: #c62828; font-weight: 700; }
+
+  /* Shares input */
+  .shares-input {
+    width: 60px; padding: 3px 5px;
+    border: 1px solid #ccc; border-radius: 3px;
+    font-size: 0.78rem; text-align: center;
+  }
+
+  /* ── Edit Watchlist Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: 10px;
+    padding: 28px; width: 720px; max-width: 96vw;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+  }
+  .modal h2 { font-size: 1.1rem; color: #003087; margin-bottom: 16px; }
+  .modal-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px; margin-bottom: 12px;
+  }
+  .modal-grid .col-hdr {
+    background: #003087; color: white;
+    font-size: 0.72rem; font-weight: 700;
+    padding: 5px 3px; text-align: center; border-radius: 3px;
+  }
+  .modal-grid input {
+    padding: 5px 4px; border: 1px solid #ccc; border-radius: 3px;
+    font-size: 0.78rem; text-align: center; width: 100%;
+  }
+  .modal-grid input:focus { outline: 2px solid #1a73e8; border-color: transparent; }
+  .modal-meta { display: flex; gap: 12px; margin-bottom: 14px; }
+  .modal-meta input {
+    flex: 1; padding: 6px 10px;
+    border: 1px solid #ccc; border-radius: 4px; font-size: 0.82rem;
+  }
+  .modal-meta label { font-size: 0.78rem; color: #555; display: block; margin-bottom: 3px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+
+  /* ── Refresh countdown ── */
+  #countdown { font-variant-numeric: tabular-nums; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .main { padding: 8px; }
+    .app-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── App Header ── -->
+<div class="app-header">
+  <div>
+    <h1>Weekly Stock Watchlist Tracker</h1>
+    <div class="meta" id="header-meta">Loading...</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-secondary btn-sm" onclick="openModal()">&#9998; Edit Watchlist</button>
+    <button class="btn btn-danger btn-sm" onclick="resetAllPositions()">&#8635; Reset Week</button>
+    <button class="btn btn-primary btn-sm" onclick="refreshPrices()">&#8635; Refresh Prices</button>
+  </div>
+</div>
+
+<!-- ── Status Bar ── -->
+<div class="status-bar">
+  <span><span class="status-dot dot-live" id="status-dot"></span><span id="status-text">Connecting...</span></span>
+  <span>Last update: <strong id="last-update">—</strong></span>
+  <span>Next refresh in: <strong id="countdown">5:00</strong></span>
+  <span style="margin-left:auto; color:#6c757d;">Data delayed ~15 min (Yahoo Finance)</span>
+</div>
+
+<!-- ── Legend ── -->
+<div class="legend">
+  <strong style="font-size:0.78rem; color:#555;">Row Status:</strong>
+  <div class="legend-item"><div class="legend-swatch" style="background:#fff9c4;border-color:#f9a825"></div> Entry Hit</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e3f2fd;border-left:4px solid #1a73e8"></div> In Position</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#fff3e0"></div> Near Stop (&lt;2%)</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#ffebee"></div> Stopped Out</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e8f5e9"></div> T1 Hit</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#c8e6c9"></div> T2 Hit</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#a5d6a7"></div> T3 Hit</div>
+</div>
+
+<!-- ── Main Table ── -->
+<div class="main">
+  <div class="table-wrap">
+    <table id="main-table">
+      <thead>
+        <tr>
+          <th class="th-title" colspan="99" id="title-cell">Loading...</th>
+        </tr>
+        <tr id="group-header-row"></tr>
+        <tr id="sub-header-row"></tr>
+      </thead>
+      <tbody id="table-body">
+        <tr><td colspan="99" style="padding:40px;color:#999;font-size:0.9rem;">Loading data...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Trade Log ── -->
+  <div style="margin-top:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <h3 style="font-size:0.95rem;color:#003087;">Trade Log</h3>
+      <button class="btn btn-secondary btn-sm" onclick="clearLog()">Clear Log</button>
+    </div>
+    <div class="table-wrap">
+      <table id="log-table" style="min-width:600px;">
+        <thead>
+          <tr>
+            <th class="th-sub" style="text-align:left;padding-left:12px;">Ticker</th>
+            <th class="th-sub">Entry Price</th>
+            <th class="th-sub">Entry Date/Time</th>
+            <th class="th-sub">Shares</th>
+            <th class="th-sub">Exit Price</th>
+            <th class="th-sub">Exit Date/Time</th>
+            <th class="th-sub">P&amp;L $</th>
+            <th class="th-sub">P&amp;L %</th>
+            <th class="th-sub">Outcome</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="9" style="padding:16px;color:#999;font-size:0.82rem;">No closed trades yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit Watchlist Modal ── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>Edit Weekly Watchlist</h2>
+    <div class="modal-meta">
+      <div>
+        <label>Date</label>
+        <input type="text" id="wl-date" placeholder="e.g. 2/28/2026"/>
+      </div>
+      <div style="flex:2">
+        <label>Week Label</label>
+        <input type="text" id="wl-week" placeholder="e.g. 3/2/2026 to 3/6/2026"/>
+      </div>
+    </div>
+    <div class="modal-grid" id="modal-grid">
+      <div class="col-hdr">Ticker</div>
+      <div class="col-hdr">Entry</div>
+      <div class="col-hdr">Stop</div>
+      <div class="col-hdr">Target 1</div>
+      <div class="col-hdr">Target 2</div>
+      <div class="col-hdr">Target 3</div>
+      <div class="col-hdr" colspan="2"></div>
+    </div>
+    <div id="modal-rows"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="addModalRow()">+ Add Row</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveWatchlist()">Save &amp; Apply</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let watchlist = null;
+let prices    = {};
+let positions = {};  // ticker -> { entered, entryTime, shares, exitPrice, exitTime, outcome }
+let tradeLog  = [];
+let countdown = 300;
+let countdownTimer = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  await loadWatchlist();
+  await loadState();
+  await refreshPrices();
+  startCountdown();
+}
+
+async function loadWatchlist() {
+  const r = await fetch('/api/watchlist');
+  watchlist = await r.json();
+  document.getElementById('header-meta').textContent =
+    `${watchlist.date}  |  Week of ${watchlist.week_label}`;
+  document.getElementById('title-cell').textContent =
+    `${watchlist.date} — For the week of ${watchlist.week_label}`;
+  buildHeaders();
+}
+
+async function loadState() {
+  const r = await fetch('/api/state');
+  const s = await r.json();
+  positions = s.positions || {};
+  tradeLog  = s.tradeLog  || [];
+  renderLog();
+}
+
+async function saveState() {
+  await fetch('/api/state', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ positions, tradeLog })
+  });
+}
+
+async function refreshPrices() {
+  setStatus('loading');
+  try {
+    const r = await fetch('/api/prices');
+    prices = await r.json();
+    setStatus('live');
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+    countdown = 300;
+  } catch(e) {
+    setStatus('error');
+  }
+  renderTable();
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(state) {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  dot.className = 'status-dot';
+  if (state === 'live')    { dot.classList.add('dot-live');  text.textContent = 'Live (15-min delay)'; }
+  if (state === 'loading') { dot.classList.add('dot-stale'); text.textContent = 'Refreshing...'; }
+  if (state === 'error')   { dot.classList.add('dot-error'); text.textContent = 'Price fetch error'; }
+}
+
+// ── Countdown ─────────────────────────────────────────────────────────────────
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    countdown--;
+    if (countdown <= 0) { refreshPrices(); countdown = 300; }
+    const m = Math.floor(countdown / 60);
+    const s = countdown % 60;
+    document.getElementById('countdown').textContent =
+      `${m}:${String(s).padStart(2,'0')}`;
+  }, 1000);
+}
+
+// ── Build Table Headers ───────────────────────────────────────────────────────
+function buildHeaders() {
+  const grp = document.getElementById('group-header-row');
+  const sub = document.getElementById('sub-header-row');
+  grp.innerHTML = `
+    <th class="th-group" rowspan="1">Ticker</th>
+    <th class="th-group">Entry</th>
+    <th class="th-group" colspan="2">Stop Loss</th>
+    <th class="th-group" colspan="2">Target 1</th>
+    <th class="th-group" colspan="2">Target 2</th>
+    <th class="th-group" colspan="2">Target 3</th>
+    <th class="th-group">Current Price</th>
+    <th class="th-group">Status</th>
+    <th class="th-group">Progress</th>
+    <th class="th-group">Shares</th>
+    <th class="th-group">Unreal. P&amp;L</th>
+    <th class="th-group">Actions</th>
+  `;
+  sub.innerHTML = `
+    <th class="th-sub"></th>
+    <th class="th-sub"></th>
+    <th class="th-sub">Price</th><th class="th-sub">% Loss</th>
+    <th class="th-sub">Price</th><th class="th-sub">% Ret</th>
+    <th class="th-sub">Price</th><th class="th-sub">% Ret</th>
+    <th class="th-sub">Price</th><th class="th-sub">% Ret</th>
+    <th class="th-sub"></th>
+    <th class="th-sub"></th>
+    <th class="th-sub">T1 → T2 → T3</th>
+    <th class="th-sub"></th>
+    <th class="th-sub"></th>
+    <th class="th-sub"></th>
+  `;
+}
+
+// ── Render Table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  if (!watchlist) return;
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+
+  watchlist.tickers.forEach((row, idx) => {
+    const { ticker, entry, stop, t1, t2, t3 } = row;
+    const price = prices[ticker];
+    const pos   = positions[ticker] || {};
+
+    // ── Compute values ──
+    const stopPct = pct(entry, stop);
+    const t1Pct   = pct(entry, t1);
+    const t2Pct   = pct(entry, t2);
+    const t3Pct   = pct(entry, t3);
+
+    // ── Determine status ──
+    const isEntered   = !!pos.entered;
+    const entryHit    = price !== null && price !== undefined && price <= entry * 1.005 && price >= entry * 0.995;
+    const nearStop    = isEntered && price !== null && price <= stop * 1.02;
+    const stoppedOut  = isEntered && price !== null && price <= stop;
+    const t1Hit       = isEntered && price !== null && price >= t1;
+    const t2Hit       = isEntered && price !== null && price >= t2;
+    const t3Hit       = isEntered && price !== null && price >= t3;
+
+    // ── Row class ──
+    let rowClass = 'row-watching';
+    if (stoppedOut)   rowClass = 'row-stopped';
+    else if (t3Hit)   rowClass = 'row-t3-hit';
+    else if (t2Hit)   rowClass = 'row-t2-hit';
+    else if (t1Hit)   rowClass = 'row-t1-hit';
+    else if (nearStop) rowClass = 'row-near-stop';
+    else if (isEntered) rowClass = 'row-entered';
+    else if (entryHit)  rowClass = 'row-entry-hit';
+
+    // ── Current price styling ──
+    let priceClass = 'val-current val-neutral';
+    let priceDisplay = price !== null && price !== undefined ? price.toFixed(2) : '—';
+    if (price !== null && price !== undefined) {
+      if (price <= stop * 1.02) priceClass = 'val-current near-stop';
+      else if (price < entry)   priceClass = 'val-current below-entry';
+      else if (Math.abs(price - entry) / entry < 0.005) priceClass = 'val-current at-entry';
+      else                      priceClass = 'val-current above-entry';
+    }
+
+    // ── Entry hit badge ──
+    const entryBadge = entryHit && !isEntered
+      ? `<span class="entry-alert">ENTRY</span>` : '';
+
+    // ── Progress bar (only when entered) ──
+    let progressHTML = '<span style="color:#ccc;font-size:0.72rem;">—</span>';
+    if (isEntered && price !== null && price !== undefined) {
+      const range = t3 - entry;
+      const prog  = Math.max(0, Math.min(100, ((price - entry) / range) * 100));
+      let barClass = 'progress-watching';
+      if (prog >= 100) barClass = 'progress-full';
+      else if (prog >= 66) barClass = 'progress-great';
+      else if (prog >= 33) barClass = 'progress-good';
+      progressHTML = `
+        <div style="font-size:0.7rem;color:#555;margin-bottom:2px;">${prog.toFixed(0)}% to T3</div>
+        <div class="progress-wrap">
+          <div class="progress-bar ${barClass}" style="width:${prog}%"></div>
+        </div>`;
+    }
+
+    // ── Status badge ──
+    let badgeHTML = '<span class="badge badge-watch">Watching</span>';
+    if (stoppedOut)    badgeHTML = '<span class="badge badge-stop">Stopped</span>';
+    else if (t3Hit)    badgeHTML = '<span class="badge badge-t3">T3 Hit</span>';
+    else if (t2Hit)    badgeHTML = '<span class="badge badge-t2">T2 Hit</span>';
+    else if (t1Hit)    badgeHTML = '<span class="badge badge-t1">T1 Hit</span>';
+    else if (isEntered) badgeHTML = '<span class="badge badge-entered">In Position</span>';
+    else if (entryHit)  badgeHTML = '<span class="badge badge-entry">Entry Hit</span>';
+
+    // ── Unrealized P&L ──
+    let pnlHTML = '<span style="color:#ccc;">—</span>';
+    const shares = pos.shares || 0;
+    if (isEntered && price !== null && shares > 0) {
+      const pnlDollar = (price - entry) * shares;
+      const pnlPct    = ((price - entry) / entry) * 100;
+      const cls = pnlDollar >= 0 ? 'pnl-positive' : 'pnl-negative';
+      pnlHTML = `<span class="${cls}">${pnlDollar >= 0 ? '+' : ''}$${pnlDollar.toFixed(2)}<br>
+        <span style="font-size:0.7rem;">(${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)</span></span>`;
+    }
+
+    // ── Target cells ──
+    const t1Class = t1Hit ? 'target-hit val-gain' : '';
+    const t2Class = t2Hit ? 'target-hit val-gain' : '';
+    const t3Class = t3Hit ? 'target-hit val-gain' : '';
+
+    // ── Action buttons ──
+    let actionHTML = '';
+    if (!isEntered) {
+      actionHTML = `<button class="btn btn-success btn-sm" onclick="enterPosition('${ticker}')">Enter</button>`;
+    } else {
+      actionHTML = `
+        <button class="btn btn-danger btn-sm" onclick="exitPosition('${ticker}','stop')" title="Exit at stop loss">Stop</button>
+        <button class="btn btn-primary btn-sm" onclick="exitPosition('${ticker}','target')" title="Exit at current price">Exit</button>
+      `;
+    }
+
+    // ── Shares input ──
+    const sharesVal = pos.shares || '';
+    const sharesHTML = isEntered
+      ? `<input class="shares-input" type="number" min="0" value="${sharesVal}"
+           onchange="updateShares('${ticker}', this.value)" placeholder="Qty"/>`
+      : `<span style="color:#ccc;">—</span>`;
+
+    // ── Entry time ──
+    const entryTimeDisplay = pos.entryTime
+      ? `<div style="font-size:0.68rem;color:#888;margin-top:2px;">${pos.entryTime}</div>` : '';
+
+    const tr = document.createElement('tr');
+    tr.className = rowClass;
+    tr.id = `row-${ticker}`;
+    tr.innerHTML = `
+      <td class="ticker-cell">${ticker}${entryBadge}${entryTimeDisplay}</td>
+      <td>${entry.toFixed(2)}</td>
+      <td>${stop.toFixed(2)}</td>
+      <td class="val-loss">${fmt(stopPct)}%</td>
+      <td class="${t1Class}">${t1.toFixed(1)}</td>
+      <td class="val-gain">${fmt(t1Pct)}%</td>
+      <td class="${t2Class}">${t2.toFixed(1)}</td>
+      <td class="val-gain">${fmt(t2Pct)}%</td>
+      <td class="${t3Class}">${t3.toFixed(1)}</td>
+      <td class="val-gain">${fmt(t3Pct)}%</td>
+      <td class="${priceClass}">${priceDisplay}</td>
+      <td>${badgeHTML}</td>
+      <td>${progressHTML}</td>
+      <td class="action-cell">${sharesHTML}</td>
+      <td>${pnlHTML}</td>
+      <td class="action-cell">${actionHTML}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Position Actions ──────────────────────────────────────────────────────────
+function enterPosition(ticker) {
+  const now = new Date().toLocaleString();
+  const row = watchlist.tickers.find(r => r.ticker === ticker);
+  positions[ticker] = {
+    entered: true,
+    entryPrice: row.entry,
+    entryTime: now,
+    shares: 0
+  };
+  saveState();
+  renderTable();
+}
+
+function exitPosition(ticker, type) {
+  const pos = positions[ticker];
+  if (!pos) return;
+  const row   = watchlist.tickers.find(r => r.ticker === ticker);
+  const price = prices[ticker];
+  const exitP = type === 'stop' ? row.stop : (price || row.entry);
+  const now   = new Date().toLocaleString();
+  const shares = pos.shares || 0;
+  const pnlD   = shares > 0 ? (exitP - pos.entryPrice) * shares : null;
+  const pnlPct = ((exitP - pos.entryPrice) / pos.entryPrice) * 100;
+  const outcome = type === 'stop' ? 'Stopped Out' : (pnlD >= 0 ? 'Profit' : 'Loss');
+
+  tradeLog.push({
+    ticker,
+    entryPrice: pos.entryPrice,
+    entryTime: pos.entryTime,
+    shares,
+    exitPrice: exitP.toFixed(2),
+    exitTime: now,
+    pnlDollar: pnlD !== null ? pnlD.toFixed(2) : '—',
+    pnlPct: pnlPct.toFixed(1),
+    outcome
+  });
+
+  delete positions[ticker];
+  saveState();
+  renderTable();
+  renderLog();
+}
+
+function updateShares(ticker, val) {
+  if (positions[ticker]) {
+    positions[ticker].shares = parseFloat(val) || 0;
+    saveState();
+    renderTable();
+  }
+}
+
+async function resetAllPositions() {
+  if (!confirm('Reset all positions and clear state for a new week?')) return;
+  positions = {};
+  await fetch('/api/reset', { method: 'POST' });
+  renderTable();
+}
+
+// ── Trade Log ─────────────────────────────────────────────────────────────────
+function renderLog() {
+  const tbody = document.getElementById('log-body');
+  if (!tradeLog || tradeLog.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="padding:16px;color:#999;font-size:0.82rem;">No closed trades yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = tradeLog.map(t => {
+    const pnlClass = parseFloat(t.pnlPct) >= 0 ? 'pnl-positive' : 'pnl-negative';
+    return `<tr>
+      <td style="text-align:left;padding-left:12px;font-weight:700;">${t.ticker}</td>
+      <td>${t.entryPrice}</td>
+      <td style="font-size:0.75rem;">${t.entryTime}</td>
+      <td>${t.shares || '—'}</td>
+      <td>${t.exitPrice}</td>
+      <td style="font-size:0.75rem;">${t.exitTime}</td>
+      <td class="${pnlClass}">${t.pnlDollar !== '—' ? (parseFloat(t.pnlDollar) >= 0 ? '+$' : '-$') + Math.abs(t.pnlDollar) : '—'}</td>
+      <td class="${pnlClass}">${parseFloat(t.pnlPct) >= 0 ? '+' : ''}${t.pnlPct}%</td>
+      <td>${t.outcome}</td>
+    </tr>`;
+  }).join('');
+}
+
+function clearLog() {
+  if (!confirm('Clear the trade log?')) return;
+  tradeLog = [];
+  saveState();
+  renderLog();
+}
+
+// ── Watchlist Modal ───────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('wl-date').value  = watchlist.date;
+  document.getElementById('wl-week').value  = watchlist.week_label;
+  const container = document.getElementById('modal-rows');
+  container.innerHTML = '';
+  watchlist.tickers.forEach((row, i) => {
+    container.innerHTML += buildModalRow(i, row);
+  });
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function buildModalRow(i, row) {
+  return `<div class="modal-grid" id="modal-row-${i}" style="margin-bottom:4px;">
+    <input type="text"   id="mr-${i}-ticker" value="${row.ticker}" placeholder="Ticker"/>
+    <input type="number" id="mr-${i}-entry"  value="${row.entry}"  step="0.01"/>
+    <input type="number" id="mr-${i}-stop"   value="${row.stop}"   step="0.01"/>
+    <input type="number" id="mr-${i}-t1"     value="${row.t1}"     step="0.01"/>
+    <input type="number" id="mr-${i}-t2"     value="${row.t2}"     step="0.01"/>
+    <input type="number" id="mr-${i}-t3"     value="${row.t3}"     step="0.01"/>
+    <div></div>
+    <button class="btn btn-danger btn-sm" onclick="removeModalRow(${i})">✕</button>
+  </div>`;
+}
+
+let modalRowCount = 0;
+function addModalRow() {
+  const container = document.getElementById('modal-rows');
+  const i = Date.now();
+  container.innerHTML += buildModalRow(i, {ticker:'',entry:'',stop:'',t1:'',t2:'',t3:''});
+  modalRowCount++;
+}
+
+function removeModalRow(i) {
+  const el = document.getElementById(`modal-row-${i}`);
+  if (el) el.remove();
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+async function saveWatchlist() {
+  const newWL = {
+    date: document.getElementById('wl-date').value,
+    week_label: document.getElementById('wl-week').value,
+    tickers: []
+  };
+  document.querySelectorAll('[id^="modal-row-"]').forEach(rowEl => {
+    const i = rowEl.id.replace('modal-row-','');
+    const ticker = document.getElementById(`mr-${i}-ticker`)?.value?.trim().toUpperCase();
+    if (!ticker) return;
+    newWL.tickers.push({
+      ticker,
+      entry: parseFloat(document.getElementById(`mr-${i}-entry`)?.value) || 0,
+      stop:  parseFloat(document.getElementById(`mr-${i}-stop`)?.value)  || 0,
+      t1:    parseFloat(document.getElementById(`mr-${i}-t1`)?.value)    || 0,
+      t2:    parseFloat(document.getElementById(`mr-${i}-t2`)?.value)    || 0,
+      t3:    parseFloat(document.getElementById(`mr-${i}-t3`)?.value)    || 0,
+    });
+  });
+  await fetch('/api/watchlist', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(newWL)
+  });
+  watchlist = newWL;
+  positions = {};
+  closeModal();
+  document.getElementById('header-meta').textContent =
+    `${watchlist.date}  |  Week of ${watchlist.week_label}`;
+  document.getElementById('title-cell').textContent =
+    `${watchlist.date} — For the week of ${watchlist.week_label}`;
+  buildHeaders();
+  await refreshPrices();
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function pct(entry, target) {
+  return ((target - entry) / entry * 100);
+}
+function fmt(v) {
+  return (v >= 0 ? '+' : '') + v.toFixed(1);
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
