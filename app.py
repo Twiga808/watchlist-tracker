@@ -13,8 +13,12 @@ from datetime import datetime
 
 app = Flask(__name__, static_folder="static")
 
-# ── Default watchlist (current week 3/9–3/13/2026) ───────────────────────────
+# ── Version tag — bump this each new week to force fresh data on redeploy ─────
+CURRENT_VERSION = "2026-W11"   # Week of 3/9/2026
+
+# ── Current week default data ─────────────────────────────────────────────────
 DEFAULT_WATCHLIST = {
+    "version": CURRENT_VERSION,
     "week_label": "3/9/2026 to 3/13/2026",
     "date": "3/7/2026",
     "tickers": [
@@ -29,8 +33,10 @@ DEFAULT_WATCHLIST = {
     ]
 }
 
-# ── Prior week data (archived 3/2–3/6/2026) ──────────────────────────────────
-PRIOR_WEEK = {
+# ── Prior week (seeded into archive on first run) ─────────────────────────────
+PRIOR_WEEK_ARCHIVE = {
+    "archived_at": "2026-03-07T00:00:00",
+    "version": "2026-W10",
     "week_label": "3/2/2026 to 3/6/2026",
     "date": "2/28/2026",
     "tickers": [
@@ -42,7 +48,8 @@ PRIOR_WEEK = {
         {"ticker": "AMC",  "entry":  1.11, "stop":  0.94, "t1":  1.20, "t2":  1.30, "t3":  1.40},
         {"ticker": "BBAI", "entry":  3.71, "stop":  3.24, "t1":  4.10, "t2":  4.50, "t3":  4.90},
         {"ticker": "CLSK", "entry":  9.51, "stop":  8.24, "t1": 10.50, "t2": 11.50, "t3": 12.50},
-    ]
+    ],
+    "state": {}
 }
 
 STATE_FILE     = os.path.join(os.path.dirname(__file__), "state.json")
@@ -52,8 +59,11 @@ ARCHIVE_FILE   = os.path.join(os.path.dirname(__file__), "archive.json")
 # ── State helpers ─────────────────────────────────────────────────────────────
 def load_state():
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE) as f:
-            return json.load(f)
+        try:
+            with open(STATE_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
     return {}
 
 def save_state(state):
@@ -61,9 +71,23 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 def load_watchlist():
+    """
+    Load watchlist. If the stored version doesn't match CURRENT_VERSION,
+    reset to DEFAULT_WATCHLIST (new week) and clear state.
+    """
     if os.path.exists(WATCHLIST_FILE):
-        with open(WATCHLIST_FILE) as f:
-            return json.load(f)
+        try:
+            with open(WATCHLIST_FILE) as f:
+                wl = json.load(f)
+            # Version mismatch → new week deployed, reset
+            if wl.get("version") != CURRENT_VERSION:
+                save_watchlist(DEFAULT_WATCHLIST)
+                save_state({})
+                return DEFAULT_WATCHLIST
+            return wl
+        except Exception:
+            pass
+    save_watchlist(DEFAULT_WATCHLIST)
     return DEFAULT_WATCHLIST
 
 def save_watchlist(wl):
@@ -72,19 +96,24 @@ def save_watchlist(wl):
 
 def load_archive():
     if os.path.exists(ARCHIVE_FILE):
-        with open(ARCHIVE_FILE) as f:
-            return json.load(f)
-    # Seed with the prior week on first load
-    return [PRIOR_WEEK]
+        try:
+            with open(ARCHIVE_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    # Seed with prior week on first load
+    archive = [PRIOR_WEEK_ARCHIVE]
+    save_archive(archive)
+    return archive
 
 def save_archive(archive):
     with open(ARCHIVE_FILE, "w") as f:
         json.dump(archive, f, indent=2)
 
-# ── Price cache (avoid hammering Yahoo) ──────────────────────────────────────
+# ── Price cache ───────────────────────────────────────────────────────────────
 _price_cache = {}
 _cache_ts    = {}
-CACHE_TTL    = 300  # 5 minutes
+CACHE_TTL    = 300
 
 def get_price(ticker):
     now = time.time()
@@ -112,6 +141,7 @@ def api_watchlist():
 @app.route("/api/watchlist", methods=["POST"])
 def api_save_watchlist():
     data = request.get_json()
+    data["version"] = CURRENT_VERSION
     save_watchlist(data)
     save_state({})
     return jsonify({"ok": True})
@@ -121,18 +151,6 @@ def api_prices():
     wl = load_watchlist()
     result = {}
     for row in wl["tickers"]:
-        sym = row["ticker"]
-        result[sym] = get_price(sym)
-    return jsonify(result)
-
-@app.route("/api/prices/archive/<int:idx>", methods=["GET"])
-def api_archive_prices(idx):
-    archive = load_archive()
-    if idx < 0 or idx >= len(archive):
-        return jsonify({}), 404
-    week = archive[idx]
-    result = {}
-    for row in week["tickers"]:
         sym = row["ticker"]
         result[sym] = get_price(sym)
     return jsonify(result)
@@ -174,8 +192,7 @@ def api_get_archive():
 
 @app.route("/api/archive", methods=["POST"])
 def api_add_to_archive():
-    """Archive the current active week (called before loading a new week)."""
-    data = request.get_json()  # expects { watchlist, state }
+    data = request.get_json()
     archive = load_archive()
     entry = {
         "archived_at": datetime.now().isoformat(),
@@ -184,7 +201,6 @@ def api_add_to_archive():
         "tickers": data.get("tickers", []),
         "state": data.get("state", {})
     }
-    # Avoid duplicate archiving of the same week
     existing_labels = [a.get("week_label") for a in archive]
     if entry["week_label"] not in existing_labels:
         archive.insert(0, entry)
