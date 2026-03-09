@@ -13,24 +13,41 @@ from datetime import datetime
 
 app = Flask(__name__, static_folder="static")
 
-# ── Default watchlist (editable via UI) ──────────────────────────────────────
+# ── Default watchlist (current week 3/9–3/13/2026) ───────────────────────────
 DEFAULT_WATCHLIST = {
-    "week_label": "3/2/2026 to 3/6/2026",
-    "date": "2/28/2026",
+    "week_label": "3/9/2026 to 3/13/2026",
+    "date": "3/7/2026",
     "tickers": [
-        {"ticker": "SOFI",  "entry": 17.51, "stop": 15.98, "t1": 19.00, "t2": 20.50, "t3": 22.00},
-        {"ticker": "CAVA",  "entry": 77.51, "stop": 71.44, "t1": 80.50, "t2": 83.50, "t3": 86.50},
-        {"ticker": "WD",    "entry": 42.51, "stop": 39.44, "t1": 46.50, "t2": 50.50, "t3": 54.50},
-        {"ticker": "APLD",  "entry": 26.51, "stop": 24.44, "t1": 28.50, "t2": 30.50, "t3": 32.50},
-        {"ticker": "BLDR",  "entry":103.01, "stop": 99.44, "t1":106.00, "t2":109.00, "t3":112.00},
-        {"ticker": "AMC",   "entry":  1.11, "stop":  0.94, "t1":  1.20, "t2":  1.30, "t3":  1.40},
-        {"ticker": "BBAI",  "entry":  3.71, "stop":  3.24, "t1":  4.10, "t2":  4.50, "t3":  4.90},
-        {"ticker": "CLSK",  "entry":  9.51, "stop":  8.24, "t1": 10.50, "t2": 11.50, "t3": 12.50},
+        {"ticker": "LC",   "entry": 14.51, "stop": 11.98, "t1": 15.75, "t2": 17.00, "t3": 18.25},
+        {"ticker": "MBC",  "entry":  8.51, "stop":  7.44, "t1":  9.50, "t2": 10.50, "t3": 11.50},
+        {"ticker": "SFIX", "entry":  3.01, "stop":  2.44, "t1":  3.40, "t2":  3.80, "t3":  4.20},
+        {"ticker": "ISRG", "entry":480.01, "stop":459.98, "t1":500.00, "t2":520.00, "t3":540.00},
+        {"ticker": "DXST", "entry":  0.21, "stop":  0.09, "t1":  0.35, "t2":  0.50, "t3":  0.65},
+        {"ticker": "EOSE", "entry":  5.51, "stop":  3.59, "t1":  6.10, "t2":  6.70, "t3":  7.30},
+        {"ticker": "PCT",  "entry":  5.51, "stop":  4.44, "t1":  6.25, "t2":  7.00, "t3":  7.75},
+        {"ticker": "SERV", "entry":  8.51, "stop":  7.44, "t1":  9.35, "t2": 10.20, "t3": 11.05},
     ]
 }
 
-STATE_FILE    = os.path.join(os.path.dirname(__file__), "state.json")
+# ── Prior week data (archived 3/2–3/6/2026) ──────────────────────────────────
+PRIOR_WEEK = {
+    "week_label": "3/2/2026 to 3/6/2026",
+    "date": "2/28/2026",
+    "tickers": [
+        {"ticker": "SOFI", "entry": 17.51, "stop": 15.98, "t1": 19.00, "t2": 20.50, "t3": 22.00},
+        {"ticker": "CAVA", "entry": 77.51, "stop": 71.44, "t1": 80.50, "t2": 83.50, "t3": 86.50},
+        {"ticker": "WD",   "entry": 42.51, "stop": 39.44, "t1": 46.50, "t2": 50.50, "t3": 54.50},
+        {"ticker": "APLD", "entry": 26.51, "stop": 24.44, "t1": 28.50, "t2": 30.50, "t3": 32.50},
+        {"ticker": "BLDR", "entry":103.01, "stop": 99.44, "t1":106.00, "t2":109.00, "t3":112.00},
+        {"ticker": "AMC",  "entry":  1.11, "stop":  0.94, "t1":  1.20, "t2":  1.30, "t3":  1.40},
+        {"ticker": "BBAI", "entry":  3.71, "stop":  3.24, "t1":  4.10, "t2":  4.50, "t3":  4.90},
+        {"ticker": "CLSK", "entry":  9.51, "stop":  8.24, "t1": 10.50, "t2": 11.50, "t3": 12.50},
+    ]
+}
+
+STATE_FILE     = os.path.join(os.path.dirname(__file__), "state.json")
 WATCHLIST_FILE = os.path.join(os.path.dirname(__file__), "watchlist.json")
+ARCHIVE_FILE   = os.path.join(os.path.dirname(__file__), "archive.json")
 
 # ── State helpers ─────────────────────────────────────────────────────────────
 def load_state():
@@ -52,6 +69,17 @@ def load_watchlist():
 def save_watchlist(wl):
     with open(WATCHLIST_FILE, "w") as f:
         json.dump(wl, f, indent=2)
+
+def load_archive():
+    if os.path.exists(ARCHIVE_FILE):
+        with open(ARCHIVE_FILE) as f:
+            return json.load(f)
+    # Seed with the prior week on first load
+    return [PRIOR_WEEK]
+
+def save_archive(archive):
+    with open(ARCHIVE_FILE, "w") as f:
+        json.dump(archive, f, indent=2)
 
 # ── Price cache (avoid hammering Yahoo) ──────────────────────────────────────
 _price_cache = {}
@@ -85,7 +113,6 @@ def api_watchlist():
 def api_save_watchlist():
     data = request.get_json()
     save_watchlist(data)
-    # Reset state when watchlist changes
     save_state({})
     return jsonify({"ok": True})
 
@@ -94,6 +121,18 @@ def api_prices():
     wl = load_watchlist()
     result = {}
     for row in wl["tickers"]:
+        sym = row["ticker"]
+        result[sym] = get_price(sym)
+    return jsonify(result)
+
+@app.route("/api/prices/archive/<int:idx>", methods=["GET"])
+def api_archive_prices(idx):
+    archive = load_archive()
+    if idx < 0 or idx >= len(archive):
+        return jsonify({}), 404
+    week = archive[idx]
+    result = {}
+    for row in week["tickers"]:
         sym = row["ticker"]
         result[sym] = get_price(sym)
     return jsonify(result)
@@ -126,6 +165,38 @@ def api_clear_ticker_state(ticker):
 @app.route("/api/reset", methods=["POST"])
 def api_reset():
     save_state({})
+    return jsonify({"ok": True})
+
+# ── Archive routes ────────────────────────────────────────────────────────────
+@app.route("/api/archive", methods=["GET"])
+def api_get_archive():
+    return jsonify(load_archive())
+
+@app.route("/api/archive", methods=["POST"])
+def api_add_to_archive():
+    """Archive the current active week (called before loading a new week)."""
+    data = request.get_json()  # expects { watchlist, state }
+    archive = load_archive()
+    entry = {
+        "archived_at": datetime.now().isoformat(),
+        "week_label": data.get("week_label", ""),
+        "date": data.get("date", ""),
+        "tickers": data.get("tickers", []),
+        "state": data.get("state", {})
+    }
+    # Avoid duplicate archiving of the same week
+    existing_labels = [a.get("week_label") for a in archive]
+    if entry["week_label"] not in existing_labels:
+        archive.insert(0, entry)
+        save_archive(archive)
+    return jsonify({"ok": True, "count": len(archive)})
+
+@app.route("/api/archive/<int:idx>", methods=["DELETE"])
+def api_delete_archive(idx):
+    archive = load_archive()
+    if 0 <= idx < len(archive):
+        archive.pop(idx)
+        save_archive(archive)
     return jsonify({"ok": True})
 
 if __name__ == "__main__":

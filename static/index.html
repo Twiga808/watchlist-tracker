@@ -40,6 +40,7 @@
   .btn-secondary { background: #e8eaf0; color: #333; }
   .btn-danger    { background: #c62828; color: white; }
   .btn-success   { background: #2e7d32; color: white; }
+  .btn-warning   { background: #f57c00; color: white; }
   .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
 
   /* ── Status bar ── */
@@ -63,6 +64,24 @@
     0%,100% { opacity: 1; } 50% { opacity: 0.4; }
   }
 
+  /* ── Tabs ── */
+  .tabs {
+    display: flex; gap: 0;
+    background: #002070;
+    padding: 0 24px;
+    border-bottom: 2px solid #1a4a9e;
+  }
+  .tab-btn {
+    padding: 10px 22px;
+    background: transparent; border: none;
+    color: #a0b8e8; font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; border-bottom: 3px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -2px;
+  }
+  .tab-btn:hover { color: #ffffff; }
+  .tab-btn.active { color: #ffffff; border-bottom-color: #f9a825; }
+
   /* ── Legend ── */
   .legend {
     display: flex; gap: 16px; padding: 10px 24px;
@@ -76,6 +95,8 @@
 
   /* ── Main layout ── */
   .main { padding: 16px 24px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 
   /* ── Table wrapper ── */
   .table-wrap {
@@ -198,6 +219,25 @@
     font-size: 0.78rem; text-align: center;
   }
 
+  /* ── Archive panel ── */
+  .archive-list {
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .archive-card {
+    background: white; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    overflow: hidden;
+  }
+  .archive-card-header {
+    background: #003087; color: white;
+    padding: 10px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .archive-card-header h3 { font-size: 0.92rem; font-weight: 700; }
+  .archive-card-header .meta { font-size: 0.75rem; opacity: 0.75; }
+  .archive-table { min-width: 900px; }
+  .archive-table td { height: 36px; font-size: 0.8rem; }
+
   /* ── Edit Watchlist Modal ── */
   .modal-overlay {
     display: none; position: fixed; inset: 0;
@@ -253,7 +293,7 @@
     <h1>Weekly Stock Watchlist Tracker</h1>
     <div class="meta" id="header-meta">Loading...</div>
   </div>
-  <div class="header-right">
+  <div class="header-right" id="active-controls">
     <button class="btn btn-secondary btn-sm" onclick="openModal()">&#9998; Edit Watchlist</button>
     <button class="btn btn-danger btn-sm" onclick="resetAllPositions()">&#8635; Reset Week</button>
     <button class="btn btn-primary btn-sm" onclick="refreshPrices()">&#8635; Refresh Prices</button>
@@ -264,12 +304,18 @@
 <div class="status-bar">
   <span><span class="status-dot dot-live" id="status-dot"></span><span id="status-text">Connecting...</span></span>
   <span>Last update: <strong id="last-update">—</strong></span>
-  <span>Next refresh in: <strong id="countdown">5:00</strong></span>
+  <span id="countdown-wrap">Next refresh in: <strong id="countdown">5:00</strong></span>
   <span style="margin-left:auto; color:#6c757d;">Data delayed ~15 min (Yahoo Finance)</span>
 </div>
 
-<!-- ── Legend ── -->
-<div class="legend">
+<!-- ── Tabs ── -->
+<div class="tabs">
+  <button class="tab-btn active" id="tab-current" onclick="switchTab('current')">&#128200; Current Week</button>
+  <button class="tab-btn" id="tab-archive" onclick="switchTab('archive')">&#128196; Archive</button>
+</div>
+
+<!-- ── Legend (current week only) ── -->
+<div class="legend" id="legend-bar">
   <strong style="font-size:0.78rem; color:#555;">Row Status:</strong>
   <div class="legend-item"><div class="legend-swatch" style="background:#fff9c4;border-color:#f9a825"></div> Entry Hit</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#e3f2fd;border-left:4px solid #1a73e8"></div> In Position</div>
@@ -280,51 +326,67 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#a5d6a7"></div> T3 Hit</div>
 </div>
 
-<!-- ── Main Table ── -->
+<!-- ── Main Content ── -->
 <div class="main">
-  <div class="table-wrap">
-    <table id="main-table">
-      <thead>
-        <tr>
-          <th class="th-title" colspan="99" id="title-cell">Loading...</th>
-        </tr>
-        <tr id="group-header-row"></tr>
-        <tr id="sub-header-row"></tr>
-      </thead>
-      <tbody id="table-body">
-        <tr><td colspan="99" style="padding:40px;color:#999;font-size:0.9rem;">Loading data...</td></tr>
-      </tbody>
-    </table>
-  </div>
 
-  <!-- ── Trade Log ── -->
-  <div style="margin-top:24px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <h3 style="font-size:0.95rem;color:#003087;">Trade Log</h3>
-      <button class="btn btn-secondary btn-sm" onclick="clearLog()">Clear Log</button>
-    </div>
+  <!-- CURRENT WEEK TAB -->
+  <div class="tab-panel active" id="panel-current">
     <div class="table-wrap">
-      <table id="log-table" style="min-width:600px;">
+      <table id="main-table">
         <thead>
           <tr>
-            <th class="th-sub" style="text-align:left;padding-left:12px;">Ticker</th>
-            <th class="th-sub">Entry Price</th>
-            <th class="th-sub">Entry Date/Time</th>
-            <th class="th-sub">Shares</th>
-            <th class="th-sub">Exit Price</th>
-            <th class="th-sub">Exit Date/Time</th>
-            <th class="th-sub">P&amp;L $</th>
-            <th class="th-sub">P&amp;L %</th>
-            <th class="th-sub">Outcome</th>
+            <th class="th-title" colspan="99" id="title-cell">Loading...</th>
           </tr>
+          <tr id="group-header-row"></tr>
+          <tr id="sub-header-row"></tr>
         </thead>
-        <tbody id="log-body">
-          <tr><td colspan="9" style="padding:16px;color:#999;font-size:0.82rem;">No closed trades yet.</td></tr>
+        <tbody id="table-body">
+          <tr><td colspan="99" style="padding:40px;color:#999;font-size:0.9rem;">Loading data...</td></tr>
         </tbody>
       </table>
     </div>
+
+    <!-- Trade Log -->
+    <div style="margin-top:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <h3 style="font-size:0.95rem;color:#003087;">Trade Log</h3>
+        <button class="btn btn-secondary btn-sm" onclick="clearLog()">Clear Log</button>
+      </div>
+      <div class="table-wrap">
+        <table id="log-table" style="min-width:600px;">
+          <thead>
+            <tr>
+              <th class="th-sub" style="text-align:left;padding-left:12px;">Ticker</th>
+              <th class="th-sub">Entry Price</th>
+              <th class="th-sub">Entry Date/Time</th>
+              <th class="th-sub">Shares</th>
+              <th class="th-sub">Exit Price</th>
+              <th class="th-sub">Exit Date/Time</th>
+              <th class="th-sub">P&amp;L $</th>
+              <th class="th-sub">P&amp;L %</th>
+              <th class="th-sub">Outcome</th>
+            </tr>
+          </thead>
+          <tbody id="log-body">
+            <tr><td colspan="9" style="padding:16px;color:#999;font-size:0.82rem;">No closed trades yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
-</div>
+
+  <!-- ARCHIVE TAB -->
+  <div class="tab-panel" id="panel-archive">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:1rem;color:#003087;">&#128196; Prior Weeks Archive</h2>
+      <span style="font-size:0.78rem;color:#888;">Read-only reference. Live prices shown where available.</span>
+    </div>
+    <div class="archive-list" id="archive-list">
+      <p style="color:#999;padding:20px;">Loading archive...</p>
+    </div>
+  </div>
+
+</div><!-- /main -->
 
 <!-- ── Edit Watchlist Modal ── -->
 <div class="modal-overlay" id="modal-overlay">
@@ -333,11 +395,11 @@
     <div class="modal-meta">
       <div>
         <label>Date</label>
-        <input type="text" id="wl-date" placeholder="e.g. 2/28/2026"/>
+        <input type="text" id="wl-date" placeholder="e.g. 3/7/2026"/>
       </div>
       <div style="flex:2">
         <label>Week Label</label>
-        <input type="text" id="wl-week" placeholder="e.g. 3/2/2026 to 3/6/2026"/>
+        <input type="text" id="wl-week" placeholder="e.g. 3/9/2026 to 3/13/2026"/>
       </div>
     </div>
     <div class="modal-grid" id="modal-grid">
@@ -362,19 +424,47 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let watchlist = null;
 let prices    = {};
-let positions = {};  // ticker -> { entered, entryTime, shares, exitPrice, exitTime, outcome }
+let positions = {};
 let tradeLog  = [];
+let archive   = [];
+let archivePrices = {};
 let countdown = 300;
 let countdownTimer = null;
+let currentTab = 'current';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   await loadWatchlist();
   await loadState();
   await refreshPrices();
+  await loadArchive();
   startCountdown();
 }
 
+// ── Tab Switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+
+  const legend = document.getElementById('legend-bar');
+  const controls = document.getElementById('active-controls');
+  const cw = document.getElementById('countdown-wrap');
+  if (tab === 'current') {
+    legend.style.display = '';
+    controls.style.display = '';
+    cw.style.display = '';
+  } else {
+    legend.style.display = 'none';
+    controls.style.display = 'none';
+    cw.style.display = 'none';
+    renderArchive();
+  }
+}
+
+// ── Watchlist ─────────────────────────────────────────────────────────────────
 async function loadWatchlist() {
   const r = await fetch('/api/watchlist');
   watchlist = await r.json();
@@ -413,6 +503,83 @@ async function refreshPrices() {
     setStatus('error');
   }
   renderTable();
+}
+
+// ── Archive ───────────────────────────────────────────────────────────────────
+async function loadArchive() {
+  try {
+    const r = await fetch('/api/archive');
+    archive = await r.json();
+  } catch(e) {
+    archive = [];
+  }
+}
+
+async function renderArchive() {
+  await loadArchive();
+  const container = document.getElementById('archive-list');
+  if (!archive || archive.length === 0) {
+    container.innerHTML = '<p style="color:#999;padding:20px;">No archived weeks yet. Prior weeks are saved here automatically.</p>';
+    return;
+  }
+  container.innerHTML = archive.map((week, idx) => buildArchiveCard(week, idx)).join('');
+}
+
+function buildArchiveCard(week, idx) {
+  const rows = (week.tickers || []).map(row => {
+    const stopPct = pct(row.entry, row.stop);
+    const t1Pct   = pct(row.entry, row.t1);
+    const t2Pct   = pct(row.entry, row.t2);
+    const t3Pct   = pct(row.entry, row.t3);
+    return `<tr class="row-watching">
+      <td class="ticker-cell" style="text-align:left;padding-left:14px;font-weight:700;">${row.ticker}</td>
+      <td>${row.entry.toFixed(2)}</td>
+      <td>${row.stop.toFixed(2)}</td>
+      <td class="val-loss">${fmt(stopPct)}%</td>
+      <td>${row.t1.toFixed(2)}</td>
+      <td class="val-gain">${fmt(t1Pct)}%</td>
+      <td>${row.t2.toFixed(2)}</td>
+      <td class="val-gain">${fmt(t2Pct)}%</td>
+      <td>${row.t3.toFixed(2)}</td>
+      <td class="val-gain">${fmt(t3Pct)}%</td>
+    </tr>`;
+  }).join('');
+
+  const archivedAt = week.archived_at
+    ? `<span class="meta">Archived: ${new Date(week.archived_at).toLocaleDateString()}</span>` : '';
+
+  return `
+  <div class="archive-card">
+    <div class="archive-card-header">
+      <div>
+        <h3>${week.date} — For the week of ${week.week_label}</h3>
+        ${archivedAt}
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="archive-table" style="min-width:800px;">
+        <thead>
+          <tr>
+            <th class="th-group" style="text-align:left;padding-left:14px;">Ticker</th>
+            <th class="th-group">Entry</th>
+            <th class="th-group" colspan="2">Stop Loss</th>
+            <th class="th-group" colspan="2">Target 1</th>
+            <th class="th-group" colspan="2">Target 2</th>
+            <th class="th-group" colspan="2">Target 3</th>
+          </tr>
+          <tr>
+            <th class="th-sub"></th>
+            <th class="th-sub"></th>
+            <th class="th-sub">Price</th><th class="th-sub">% Loss</th>
+            <th class="th-sub">Price</th><th class="th-sub">% Ret</th>
+            <th class="th-sub">Price</th><th class="th-sub">% Ret</th>
+            <th class="th-sub">Price</th><th class="th-sub">% Ret</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
@@ -483,13 +650,11 @@ function renderTable() {
     const price = prices[ticker];
     const pos   = positions[ticker] || {};
 
-    // ── Compute values ──
     const stopPct = pct(entry, stop);
     const t1Pct   = pct(entry, t1);
     const t2Pct   = pct(entry, t2);
     const t3Pct   = pct(entry, t3);
 
-    // ── Determine status ──
     const isEntered   = !!pos.entered;
     const entryHit    = price !== null && price !== undefined && price <= entry * 1.005 && price >= entry * 0.995;
     const nearStop    = isEntered && price !== null && price <= stop * 1.02;
@@ -498,7 +663,6 @@ function renderTable() {
     const t2Hit       = isEntered && price !== null && price >= t2;
     const t3Hit       = isEntered && price !== null && price >= t3;
 
-    // ── Row class ──
     let rowClass = 'row-watching';
     if (stoppedOut)   rowClass = 'row-stopped';
     else if (t3Hit)   rowClass = 'row-t3-hit';
@@ -508,7 +672,6 @@ function renderTable() {
     else if (isEntered) rowClass = 'row-entered';
     else if (entryHit)  rowClass = 'row-entry-hit';
 
-    // ── Current price styling ──
     let priceClass = 'val-current val-neutral';
     let priceDisplay = price !== null && price !== undefined ? price.toFixed(2) : '—';
     if (price !== null && price !== undefined) {
@@ -518,11 +681,9 @@ function renderTable() {
       else                      priceClass = 'val-current above-entry';
     }
 
-    // ── Entry hit badge ──
     const entryBadge = entryHit && !isEntered
       ? `<span class="entry-alert">ENTRY</span>` : '';
 
-    // ── Progress bar (only when entered) ──
     let progressHTML = '<span style="color:#ccc;font-size:0.72rem;">—</span>';
     if (isEntered && price !== null && price !== undefined) {
       const range = t3 - entry;
@@ -538,7 +699,6 @@ function renderTable() {
         </div>`;
     }
 
-    // ── Status badge ──
     let badgeHTML = '<span class="badge badge-watch">Watching</span>';
     if (stoppedOut)    badgeHTML = '<span class="badge badge-stop">Stopped</span>';
     else if (t3Hit)    badgeHTML = '<span class="badge badge-t3">T3 Hit</span>';
@@ -547,7 +707,6 @@ function renderTable() {
     else if (isEntered) badgeHTML = '<span class="badge badge-entered">In Position</span>';
     else if (entryHit)  badgeHTML = '<span class="badge badge-entry">Entry Hit</span>';
 
-    // ── Unrealized P&L ──
     let pnlHTML = '<span style="color:#ccc;">—</span>';
     const shares = pos.shares || 0;
     if (isEntered && price !== null && shares > 0) {
@@ -558,12 +717,10 @@ function renderTable() {
         <span style="font-size:0.7rem;">(${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%)</span></span>`;
     }
 
-    // ── Target cells ──
     const t1Class = t1Hit ? 'target-hit val-gain' : '';
     const t2Class = t2Hit ? 'target-hit val-gain' : '';
     const t3Class = t3Hit ? 'target-hit val-gain' : '';
 
-    // ── Action buttons ──
     let actionHTML = '';
     if (!isEntered) {
       actionHTML = `<button class="btn btn-success btn-sm" onclick="enterPosition('${ticker}')">Enter</button>`;
@@ -574,14 +731,12 @@ function renderTable() {
       `;
     }
 
-    // ── Shares input ──
     const sharesVal = pos.shares || '';
     const sharesHTML = isEntered
       ? `<input class="shares-input" type="number" min="0" value="${sharesVal}"
            onchange="updateShares('${ticker}', this.value)" placeholder="Qty"/>`
       : `<span style="color:#ccc;">—</span>`;
 
-    // ── Entry time ──
     const entryTimeDisplay = pos.entryTime
       ? `<div style="font-size:0.68rem;color:#888;margin-top:2px;">${pos.entryTime}</div>` : '';
 
@@ -593,11 +748,11 @@ function renderTable() {
       <td>${entry.toFixed(2)}</td>
       <td>${stop.toFixed(2)}</td>
       <td class="val-loss">${fmt(stopPct)}%</td>
-      <td class="${t1Class}">${t1.toFixed(1)}</td>
+      <td class="${t1Class}">${t1.toFixed(2)}</td>
       <td class="val-gain">${fmt(t1Pct)}%</td>
-      <td class="${t2Class}">${t2.toFixed(1)}</td>
+      <td class="${t2Class}">${t2.toFixed(2)}</td>
       <td class="val-gain">${fmt(t2Pct)}%</td>
-      <td class="${t3Class}">${t3.toFixed(1)}</td>
+      <td class="${t3Class}">${t3.toFixed(2)}</td>
       <td class="val-gain">${fmt(t3Pct)}%</td>
       <td class="${priceClass}">${priceDisplay}</td>
       <td>${badgeHTML}</td>
