@@ -14,11 +14,29 @@ from datetime import datetime
 app = Flask(__name__, static_folder="static")
 
 # ── Version tag — bump this each new week to force fresh data on redeploy ─────
-CURRENT_VERSION = "2026-W11"   # Week of 3/9/2026
+CURRENT_VERSION = "2026-W12"   # Week of 3/16/2026
 
 # ── Current week default data ─────────────────────────────────────────────────
 DEFAULT_WATCHLIST = {
     "version": CURRENT_VERSION,
+    "week_label": "3/16/2026 to 3/20/2026",
+    "date": "3/15/2026",
+    "tickers": [
+        {"ticker": "MU",   "entry": 420.01, "stop": 394.44, "t1": 435,    "t2": 450,    "t3": 465},
+        {"ticker": "AVGO", "entry": 315.01, "stop": 294.44, "t1": 325,    "t2": 335,    "t3": 345},
+        {"ticker": "NVDA", "entry": 178.01, "stop": 172.98, "t1": 183,    "t2": 188,    "t3": 193},
+        {"ticker": "ROST", "entry": 201.01, "stop": 193.44, "t1": 206,    "t2": 211,    "t3": 216},
+        {"ticker": "ANAB", "entry":  60.01, "stop":  54.44, "t1":  62.5,  "t2":  65,    "t3":  67.5},
+        {"ticker": "NOC",  "entry": 720.01, "stop": 699.44, "t1": 735,    "t2": 750,    "t3": 765},
+        {"ticker": "IOVA", "entry":   3.61, "stop":   2.94, "t1":   4.2,  "t2":   4.8,  "t3":   5.4},
+        {"ticker": "PUMP", "entry":  12.51, "stop":  10.94, "t1":  13.25, "t2":  14,    "t3":  14.75},
+    ]
+}
+
+# ── Prior week (seeded into archive on first run) ─────────────────────────────
+PRIOR_WEEK_ARCHIVE = {
+    "archived_at": "2026-03-15T00:00:00",
+    "version": "2026-W11",
     "week_label": "3/9/2026 to 3/13/2026",
     "date": "3/7/2026",
     "tickers": [
@@ -30,24 +48,6 @@ DEFAULT_WATCHLIST = {
         {"ticker": "EOSE", "entry":  5.51, "stop":  3.59, "t1":  6.10, "t2":  6.70, "t3":  7.30},
         {"ticker": "PCT",  "entry":  5.51, "stop":  4.44, "t1":  6.25, "t2":  7.00, "t3":  7.75},
         {"ticker": "SERV", "entry":  8.51, "stop":  7.44, "t1":  9.35, "t2": 10.20, "t3": 11.05},
-    ]
-}
-
-# ── Prior week (seeded into archive on first run) ─────────────────────────────
-PRIOR_WEEK_ARCHIVE = {
-    "archived_at": "2026-03-07T00:00:00",
-    "version": "2026-W10",
-    "week_label": "3/2/2026 to 3/6/2026",
-    "date": "2/28/2026",
-    "tickers": [
-        {"ticker": "SOFI", "entry": 17.51, "stop": 15.98, "t1": 19.00, "t2": 20.50, "t3": 22.00},
-        {"ticker": "CAVA", "entry": 77.51, "stop": 71.44, "t1": 80.50, "t2": 83.50, "t3": 86.50},
-        {"ticker": "WD",   "entry": 42.51, "stop": 39.44, "t1": 46.50, "t2": 50.50, "t3": 54.50},
-        {"ticker": "APLD", "entry": 26.51, "stop": 24.44, "t1": 28.50, "t2": 30.50, "t3": 32.50},
-        {"ticker": "BLDR", "entry":103.01, "stop": 99.44, "t1":106.00, "t2":109.00, "t3":112.00},
-        {"ticker": "AMC",  "entry":  1.11, "stop":  0.94, "t1":  1.20, "t2":  1.30, "t3":  1.40},
-        {"ticker": "BBAI", "entry":  3.71, "stop":  3.24, "t1":  4.10, "t2":  4.50, "t3":  4.90},
-        {"ticker": "CLSK", "entry":  9.51, "stop":  8.24, "t1": 10.50, "t2": 11.50, "t3": 12.50},
     ],
     "state": {}
 }
